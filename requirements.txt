@@ -1,2 +1,3 @@
 PySide6>=6.9.1
 requests>=2.31
+google-generativeai>=0.3.0
