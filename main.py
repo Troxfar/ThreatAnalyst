@@ -3,7 +3,8 @@ from pathlib import Path
 from PySide6 import QtCore, QtGui, QtWidgets
 import google.generativeai as genai
 
-LM_URL = "http://localhost:1234/v1/chat/completions"
+# default LM Studio endpoint used if no setting has been saved yet
+DEFAULT_LM_URL = "http://localhost:1234/v1/chat/completions"
 EMOTION_MAP = {
     "neutral": {"eyes":"eyes_neutral.png", "mouth":"mouth_neutral.png", "brows":"brows_neutral.png"},
     "joy":     {"eyes":"eyes_happy.png",   "mouth":"mouth_smile.png",   "brows":"brows_up.png"},
@@ -44,8 +45,9 @@ class AvatarView(QtWidgets.QGraphicsView):
         self.eyes_item.setTransform(QtGui.QTransform().scale(1.0, 0.1))
         QtCore.QTimer.singleShot(120, lambda: (self.eyes_item.setTransform(QtGui.QTransform()), setattr(self, '_blinking', False)))
 class ChatTab(QtWidgets.QWidget):
-    def __init__(self):
+    def __init__(self, settings: 'SettingsTab'):
         super().__init__()
+        self.settings = settings
         self.setStyleSheet('QTextEdit { background:#0f1630; color:#e6f0ff; } QLineEdit { background:#101a3a; color:#e6f0ff; padding:6px; } QPushButton { padding:6px 12px; }')
         assets = Path(__file__).parent / 'assets'; self.avatar = AvatarView(assets)
         self.history = QtWidgets.QTextEdit(readOnly=True); self.input = QtWidgets.QLineEdit(placeholderText='Say something…'); self.sendBtn = QtWidgets.QPushButton('Send')
@@ -65,10 +67,11 @@ class ChatTab(QtWidgets.QWidget):
         self.history.append(f'<b>{who}:</b> {text}')
 
     def _call_lmstudio(self):
+        url = self.settings.get_lm_endpoint() or DEFAULT_LM_URL
         payload = {'model': self.model_name, 'messages': self.messages[-12:], 'temperature': 0.7,
                    'response_format': {'type':'json_schema','json_schema':{'name':'EmotionTaggedReply','schema':{'type':'object','properties':{'assistant_text':{'type':'string'},'emotion':{'type':'string','enum':['neutral','joy','sad','angry','fear','surprise','disgust']},'intensity':{'type':'number','minimum':0,'maximum':1}},'required':['assistant_text','emotion','intensity'],'additionalProperties': False}}}}
         try:
-            r = requests.post(LM_URL, json=payload, timeout=60); r.raise_for_status(); data = r.json()
+            r = requests.post(url, json=payload, timeout=60); r.raise_for_status(); data = r.json()
             content = data['choices'][0]['message']['content']; tagged = json.loads(content) if isinstance(content, str) else content
             reply = tagged.get('assistant_text','…'); emotion = tagged.get('emotion','neutral'); intensity = float(tagged.get('intensity', 0.5))
             self.messages.append({'role':'assistant','content':reply}); self._append('AI', reply); self.avatar.set_emotion(emotion, intensity)
@@ -80,12 +83,29 @@ class ChatTab(QtWidgets.QWidget):
 class SettingsTab(QtWidgets.QWidget):
     def __init__(self):
         super().__init__()
+        self.settings = QtCore.QSettings('ThreatAnalyst', 'NeonJoy')
+        self.lm_endpoint_edit = QtWidgets.QLineEdit()
         self.api_key_edit = QtWidgets.QLineEdit()
         form = QtWidgets.QFormLayout(self)
+        form.addRow('LM Studio Endpoint', self.lm_endpoint_edit)
         form.addRow('Gemini API Key', self.api_key_edit)
+        self.load_settings()
+        self.lm_endpoint_edit.editingFinished.connect(self.save_settings)
+        self.api_key_edit.editingFinished.connect(self.save_settings)
+
+    def load_settings(self):
+        self.lm_endpoint_edit.setText(self.settings.value('lm_endpoint', DEFAULT_LM_URL))
+        self.api_key_edit.setText(self.settings.value('gemini_api_key', ''))
+
+    def save_settings(self):
+        self.settings.setValue('lm_endpoint', self.lm_endpoint_edit.text().strip())
+        self.settings.setValue('gemini_api_key', self.api_key_edit.text().strip())
 
     def get_api_key(self) -> str:
         return self.api_key_edit.text().strip()
+
+    def get_lm_endpoint(self) -> str:
+        return self.lm_endpoint_edit.text().strip()
 
 
 class GeminiTab(QtWidgets.QWidget):
@@ -163,8 +183,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.tabs = QtWidgets.QTabWidget()
         self.setCentralWidget(self.tabs)
 
-        self.chat_tab = ChatTab()
         self.settings_tab = SettingsTab()
+        self.chat_tab = ChatTab(self.settings_tab)
         self.gemini_tab = GeminiTab(self.settings_tab)
         self.tabs.addTab(self.chat_tab, "Chat")
         self.tabs.addTab(self.gemini_tab, "Gemini")
