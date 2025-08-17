@@ -42,10 +42,9 @@ class AvatarView(QtWidgets.QGraphicsView):
         self._blinking=True
         self.eyes_item.setTransform(QtGui.QTransform().scale(1.0, 0.1))
         QtCore.QTimer.singleShot(120, lambda: (self.eyes_item.setTransform(QtGui.QTransform()), setattr(self, '_blinking', False)))
-class ChatWindow(QtWidgets.QWidget):
+class ChatTab(QtWidgets.QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle('NeonJoy — Adjutant Edition (Python)')
         self.setStyleSheet('QTextEdit { background:#0f1630; color:#e6f0ff; } QLineEdit { background:#101a3a; color:#e6f0ff; padding:6px; } QPushButton { padding:6px 12px; }')
         assets = Path(__file__).parent / 'assets'; self.avatar = AvatarView(assets)
         self.history = QtWidgets.QTextEdit(readOnly=True); self.input = QtWidgets.QLineEdit(placeholderText='Say something…'); self.sendBtn = QtWidgets.QPushButton('Send')
@@ -54,12 +53,16 @@ class ChatWindow(QtWidgets.QWidget):
         layout = QtWidgets.QVBoxLayout(self); layout.addLayout(hl); layout.addLayout(bl)
         self.sendBtn.clicked.connect(self.on_send); self.input.returnPressed.connect(self.on_send)
         self.model_name = 'qwen2.5-7b-instruct'; self.messages = [{'role':'system','content':'Return STRICT JSON only, matching the schema.'}]
+
     def on_send(self):
         text = self.input.text().strip()
         if not text: return
         self.input.clear(); self._append('You', text); self.messages.append({'role':'user','content':text})
         QtCore.QTimer.singleShot(0, self._call_lmstudio)
-    def _append(self, who, text): self.history.append(f'<b>{who}:</b> {text}')
+
+    def _append(self, who, text):
+        self.history.append(f'<b>{who}:</b> {text}')
+
     def _call_lmstudio(self):
         payload = {'model': self.model_name, 'messages': self.messages[-12:], 'temperature': 0.7,
                    'response_format': {'type':'json_schema','json_schema':{'name':'EmotionTaggedReply','schema':{'type':'object','properties':{'assistant_text':{'type':'string'},'emotion':{'type':'string','enum':['neutral','joy','sad','angry','fear','surprise','disgust']},'intensity':{'type':'number','minimum':0,'maximum':1}},'required':['assistant_text','emotion','intensity'],'additionalProperties': False}}}}
@@ -68,6 +71,35 @@ class ChatWindow(QtWidgets.QWidget):
             content = data['choices'][0]['message']['content']; tagged = json.loads(content) if isinstance(content, str) else content
             reply = tagged.get('assistant_text','…'); emotion = tagged.get('emotion','neutral'); intensity = float(tagged.get('intensity', 0.5))
             self.messages.append({'role':'assistant','content':reply}); self._append('AI', reply); self.avatar.set_emotion(emotion, intensity)
-        except Exception as e: self._append('System', f"<span style='color:#ff7b7b'>Error: {e}</span>")
+            
+        except Exception as e:
+            self._append('System', f"<span style='color:#ff7b7b'>Error: {e}</span>")
+
+
+class MainWindow(QtWidgets.QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle('NeonJoy — Adjutant Edition (Python)')
+        self.tabs = QtWidgets.QTabWidget()
+        self.setCentralWidget(self.tabs)
+
+        self.chat_tab = ChatTab()
+        self.tabs.addTab(self.chat_tab, "Chat")
+
+        gemini_tab = QtWidgets.QWidget()
+        gemini_layout = QtWidgets.QVBoxLayout(gemini_tab)
+        gemini_layout.addWidget(QtWidgets.QLabel("Gemini placeholder"))
+
+        settings_tab = QtWidgets.QWidget()
+        settings_layout = QtWidgets.QVBoxLayout(settings_tab)
+        settings_layout.addWidget(QtWidgets.QLabel("Settings placeholder"))
+
+        self.tabs.addTab(gemini_tab, "Gemini")
+        self.tabs.addTab(settings_tab, "Settings")
+
+
 if __name__ == '__main__':
-    app = QtWidgets.QApplication([]); w = ChatWindow(); w.show(); app.exec()
+    app = QtWidgets.QApplication([])
+    w = MainWindow()
+    w.show()
+    app.exec()
