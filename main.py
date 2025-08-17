@@ -1,6 +1,7 @@
 import json, requests
 from pathlib import Path
 from PySide6 import QtCore, QtGui, QtWidgets
+import google.generativeai as genai
 
 LM_URL = "http://localhost:1234/v1/chat/completions"
 EMOTION_MAP = {
@@ -76,6 +77,85 @@ class ChatTab(QtWidgets.QWidget):
             self._append('System', f"<span style='color:#ff7b7b'>Error: {e}</span>")
 
 
+class SettingsTab(QtWidgets.QWidget):
+    def __init__(self):
+        super().__init__()
+        self.api_key_edit = QtWidgets.QLineEdit()
+        form = QtWidgets.QFormLayout(self)
+        form.addRow('Gemini API Key', self.api_key_edit)
+
+    def get_api_key(self) -> str:
+        return self.api_key_edit.text().strip()
+
+
+class GeminiTab(QtWidgets.QWidget):
+    def __init__(self, settings: 'SettingsTab'):
+        super().__init__()
+        self.settings = settings
+        instructions_path = Path(__file__).parent / 'resources' / 'instructions.txt'
+        self.instructions_edit = QtWidgets.QTextEdit()
+        self.instructions_edit.setPlainText(instructions_path.read_text(encoding='utf-8'))
+        self.response_edit = QtWidgets.QTextEdit(readOnly=True)
+        self.timer_label = QtWidgets.QLabel('00:00')
+        self.duration_combo = QtWidgets.QComboBox()
+        self.duration_combo.addItems(['1', '5', '10'])
+        self.duration_combo.currentIndexChanged.connect(self.update_duration)
+        controls = QtWidgets.QHBoxLayout()
+        controls.addWidget(QtWidgets.QLabel('Minutes:'))
+        controls.addWidget(self.duration_combo)
+        controls.addStretch(1)
+        controls.addWidget(self.timer_label)
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.addWidget(self.instructions_edit, 1)
+        layout.addLayout(controls)
+        layout.addWidget(self.response_edit, 1)
+        self.timer = QtCore.QTimer(self)
+        self.timer.timeout.connect(self._tick)
+        self.duration_minutes = int(self.duration_combo.currentText())
+        self.start_timer()
+
+    def start_timer(self):
+        self.remaining = self.duration_minutes * 60
+        self._update_display()
+        self.timer.start(1000)
+
+    def set_duration(self, minutes: int):
+        idx = self.duration_combo.findText(str(minutes))
+        if idx == -1:
+            self.duration_combo.addItem(str(minutes))
+            idx = self.duration_combo.count() - 1
+        self.duration_combo.setCurrentIndex(idx)
+
+    def update_duration(self):
+        self.duration_minutes = int(self.duration_combo.currentText())
+        self.start_timer()
+
+    def _update_display(self):
+        m, s = divmod(self.remaining, 60)
+        self.timer_label.setText(f'{m:02d}:{s:02d}')
+
+    def _tick(self):
+        self.remaining -= 1
+        self._update_display()
+        if self.remaining <= 0:
+            self.timer.stop()
+            QtCore.QTimer.singleShot(0, self._send_to_gemini)
+            self.start_timer()
+
+    def _send_to_gemini(self):
+        key = self.settings.get_api_key()
+        if not key:
+            self.response_edit.setPlainText('No API key set.')
+            return
+        try:
+            genai.configure(api_key=key)
+            model = genai.GenerativeModel('gemini-1.5-flash')
+            resp = model.generate_content(self.instructions_edit.toPlainText())
+            self.response_edit.setPlainText(resp.text)
+        except Exception as e:
+            self.response_edit.setPlainText(f'Error: {e}')
+
+
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self):
         super().__init__()
@@ -84,18 +164,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setCentralWidget(self.tabs)
 
         self.chat_tab = ChatTab()
+        self.settings_tab = SettingsTab()
+        self.gemini_tab = GeminiTab(self.settings_tab)
         self.tabs.addTab(self.chat_tab, "Chat")
-
-        gemini_tab = QtWidgets.QWidget()
-        gemini_layout = QtWidgets.QVBoxLayout(gemini_tab)
-        gemini_layout.addWidget(QtWidgets.QLabel("Gemini placeholder"))
-
-        settings_tab = QtWidgets.QWidget()
-        settings_layout = QtWidgets.QVBoxLayout(settings_tab)
-        settings_layout.addWidget(QtWidgets.QLabel("Settings placeholder"))
-
-        self.tabs.addTab(gemini_tab, "Gemini")
-        self.tabs.addTab(settings_tab, "Settings")
+        self.tabs.addTab(self.gemini_tab, "Gemini")
+        self.tabs.addTab(self.settings_tab, "Settings")
 
 
 if __name__ == '__main__':

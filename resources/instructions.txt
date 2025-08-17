@@ -1,0 +1,1 @@
+Summarize the following threat intelligence information and suggest appropriate mitigations.
