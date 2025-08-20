@@ -265,7 +265,9 @@ class FeedScraperTab(QtWidgets.QWidget):
                 items = root.findall('.//item')
                 if not items:
                     items = root.findall('.//{http://www.w3.org/2005/Atom}entry')
-                for item in items[:5]:
+                # TODO: Add a user-configurable limit or pagination to avoid
+                # excessive output for very long feeds.
+                for item in items:
                     title = item.findtext('title') or item.findtext('{http://www.w3.org/2005/Atom}title', '')
                     link = item.findtext('link')
                     if link is None:
