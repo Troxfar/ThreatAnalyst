@@ -203,6 +203,8 @@ class FeedScraperTab(QtWidgets.QWidget):
         controls = QtWidgets.QHBoxLayout()
         controls.addWidget(QtWidgets.QLabel('Refresh (min):'))
         controls.addWidget(self.interval_combo)
+        self.countdown_label = QtWidgets.QLabel("00:00")
+        controls.addWidget(self.countdown_label)
         controls.addStretch(1)
         layout = QtWidgets.QVBoxLayout(self)
         layout.addWidget(self.url_edit)
@@ -210,12 +212,27 @@ class FeedScraperTab(QtWidgets.QWidget):
         layout.addWidget(self.output, 1)
         self.timer = QtCore.QTimer(self)
         self.timer.timeout.connect(self.scrape)
+        self.countdown_timer = QtCore.QTimer(self)
+        self.countdown_timer.timeout.connect(self._countdown_tick)
         self.set_interval(5)
+        self.countdown_timer.start(1000)
         self.scrape()
 
     def set_interval(self, minutes: int):
         self.timer.stop()
-        self.timer.start(max(1, minutes) * 60 * 1000)
+        self.interval_seconds = max(1, minutes) * 60
+        self.timer.start(self.interval_seconds * 1000)
+        self.remaining_seconds = self.interval_seconds
+        self._update_countdown_label()
+
+    def _update_countdown_label(self):
+        m, s = divmod(self.remaining_seconds, 60)
+        self.countdown_label.setText(f"{m:02d}:{s:02d}")
+
+    def _countdown_tick(self):
+        if self.remaining_seconds > 0:
+            self.remaining_seconds -= 1
+        self._update_countdown_label()
 
     def scrape(self):
         urls = [u.strip() for u in self.url_edit.toPlainText().splitlines() if u.strip()]
@@ -240,6 +257,8 @@ class FeedScraperTab(QtWidgets.QWidget):
             except Exception as e:
                 lines.append(f"Error fetching {url}: {e}")
         self.output.setPlainText("\n".join(lines))
+        self.remaining_seconds = self.interval_seconds
+        self._update_countdown_label()
 
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self):
