@@ -181,7 +181,8 @@ class FeedScraperTab(QtWidgets.QWidget):
     def __init__(self, settings_tab):
         super().__init__()
         self.settings_tab = settings_tab
-        urls = [
+        self.settings = QtCore.QSettings('ThreatAnalyst', 'NeonJoy')
+        self.default_urls = [
             "https://feeds.feedburner.com/TheHackersNews",
             "https://www.bleepingcomputer.com/feed/",
             "https://krebsonsecurity.com/feed/",
@@ -194,7 +195,9 @@ class FeedScraperTab(QtWidgets.QWidget):
             "https://www.cisecurity.org/feed/advisories",
         ]
         self.url_edit = QtWidgets.QPlainTextEdit()
-        self.url_edit.setPlainText("\n".join(urls))
+        self.save_btn = QtWidgets.QPushButton('Save URLs')
+        self.save_btn.clicked.connect(self.save_urls)
+        self.load_urls()
         self.output = QtWidgets.QTextEdit(readOnly=True)
         self.interval_combo = QtWidgets.QComboBox()
         self.interval_combo.addItems(["5", "15", "60"])
@@ -207,7 +210,10 @@ class FeedScraperTab(QtWidgets.QWidget):
         controls.addWidget(self.countdown_label)
         controls.addStretch(1)
         layout = QtWidgets.QVBoxLayout(self)
-        layout.addWidget(self.url_edit)
+        url_layout = QtWidgets.QHBoxLayout()
+        url_layout.addWidget(self.url_edit, 1)
+        url_layout.addWidget(self.save_btn)
+        layout.addLayout(url_layout)
         layout.addLayout(controls)
         layout.addWidget(self.output, 1)
         self.timer = QtCore.QTimer(self)
@@ -217,6 +223,20 @@ class FeedScraperTab(QtWidgets.QWidget):
         self.set_interval(5)
         self.countdown_timer.start(1000)
         self.scrape()
+
+    def save_urls(self):
+        self.settings.setValue('feed_urls', self.url_edit.toPlainText())
+
+    def load_urls(self):
+        stored = self.settings.value('feed_urls')
+        if stored:
+            self.url_edit.setPlainText(stored)
+        else:
+            self.url_edit.setPlainText("\n".join(self.default_urls))
+
+    def closeEvent(self, event):
+        self.save_urls()
+        super().closeEvent(event)
 
     def set_interval(self, minutes: int):
         self.timer.stop()
