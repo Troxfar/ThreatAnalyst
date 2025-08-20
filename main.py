@@ -1,4 +1,5 @@
 import json, requests
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from PySide6 import QtCore, QtGui, QtWidgets
 import google.generativeai as genai
@@ -176,6 +177,69 @@ class GeminiTab(QtWidgets.QWidget):
             self.response_edit.setPlainText(f'Error: {e}')
 
 
+class FeedScraperTab(QtWidgets.QWidget):
+    def __init__(self):
+        super().__init__()
+        urls = [
+            "https://feeds.feedburner.com/TheHackersNews",
+            "https://www.bleepingcomputer.com/feed/",
+            "https://krebsonsecurity.com/feed/",
+            "https://www.darkreading.com/rss.xml",
+            "https://www.securityweek.com/feed/",
+            "https://threatpost.com/feed/",
+            "https://us-cert.cisa.gov/ncas/all.xml",
+            "https://www.schneier.com/blog/atom.xml",
+            "https://www.csoonline.com/index.rss",
+            "https://www.cisecurity.org/feed/advisories",
+        ]
+        self.url_edit = QtWidgets.QPlainTextEdit()
+        self.url_edit.setPlainText("\n".join(urls))
+        self.output = QtWidgets.QTextEdit(readOnly=True)
+        self.interval_combo = QtWidgets.QComboBox()
+        self.interval_combo.addItems(["5", "15", "60"])
+        self.interval_combo.setCurrentText("5")
+        self.interval_combo.currentTextChanged.connect(lambda t: self.set_interval(int(t)))
+        controls = QtWidgets.QHBoxLayout()
+        controls.addWidget(QtWidgets.QLabel('Refresh (min):'))
+        controls.addWidget(self.interval_combo)
+        controls.addStretch(1)
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.addWidget(self.url_edit)
+        layout.addLayout(controls)
+        layout.addWidget(self.output, 1)
+        self.timer = QtCore.QTimer(self)
+        self.timer.timeout.connect(self.scrape)
+        self.set_interval(5)
+        self.scrape()
+
+    def set_interval(self, minutes: int):
+        self.timer.stop()
+        self.timer.start(max(1, minutes) * 60 * 1000)
+
+    def scrape(self):
+        urls = [u.strip() for u in self.url_edit.toPlainText().splitlines() if u.strip()]
+        lines = []
+        for url in urls:
+            try:
+                r = requests.get(url, timeout=10)
+                r.raise_for_status()
+                root = ET.fromstring(r.content)
+                items = root.findall('.//item')
+                if not items:
+                    items = root.findall('.//{http://www.w3.org/2005/Atom}entry')
+                for item in items[:5]:
+                    title = item.findtext('title') or item.findtext('{http://www.w3.org/2005/Atom}title', '')
+                    link = item.findtext('link')
+                    if link is None:
+                        link_elem = item.find('{http://www.w3.org/2005/Atom}link')
+                        if link_elem is not None:
+                            link = link_elem.get('href', '')
+                    if title and link:
+                        lines.append(f"{title.strip()}: {link.strip()}")
+            except Exception as e:
+                lines.append(f"Error fetching {url}: {e}")
+        self.output.setPlainText("\n".join(lines))
+
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self):
         super().__init__()
@@ -186,8 +250,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.settings_tab = SettingsTab()
         self.chat_tab = ChatTab(self.settings_tab)
         self.gemini_tab = GeminiTab(self.settings_tab)
+        self.feed_tab = FeedScraperTab()
         self.tabs.addTab(self.chat_tab, "Chat")
         self.tabs.addTab(self.gemini_tab, "Gemini")
+        self.tabs.addTab(self.feed_tab, "Feeds")
         self.tabs.addTab(self.settings_tab, "Settings")
 
 
