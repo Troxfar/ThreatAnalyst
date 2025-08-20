@@ -178,8 +178,9 @@ class GeminiTab(QtWidgets.QWidget):
 
 
 class FeedScraperTab(QtWidgets.QWidget):
-    def __init__(self):
+    def __init__(self, settings_tab):
         super().__init__()
+        self.settings_tab = settings_tab
         urls = [
             "https://feeds.feedburner.com/TheHackersNews",
             "https://www.bleepingcomputer.com/feed/",
@@ -249,10 +250,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.settings_tab = SettingsTab()
         self.chat_tab = ChatTab(self.settings_tab)
-        self.gemini_tab = GeminiTab(self.settings_tab)
-        self.feed_tab = FeedScraperTab()
+        self.feed_tab = FeedScraperTab(self.settings_tab)
         self.tabs.addTab(self.chat_tab, "Chat")
-        self.tabs.addTab(self.gemini_tab, "Gemini")
         self.tabs.addTab(self.feed_tab, "Feeds")
         self.tabs.addTab(self.settings_tab, "Settings")
 
