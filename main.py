@@ -285,12 +285,37 @@ class FeedScraperTab(QtWidgets.QWidget):
                 # TODO: Add a user-configurable limit or pagination to avoid
                 # excessive output for very long feeds.
                 for item in items:
-                    title = item.findtext('title') or item.findtext('{http://www.w3.org/2005/Atom}title', '')
-                    link = item.findtext('link')
-                    if link is None:
-                        link_elem = item.find('{http://www.w3.org/2005/Atom}link')
+                    title = (
+                        item.findtext('title')
+                        or item.findtext('{http://www.w3.org/2005/Atom}title')
+                        or item.get('title')
+                    )
+                    if not title:
+                        title_elem = item.find('{*}title')
+                        if title_elem is not None:
+                            title = (
+                                title_elem.get('value')
+                                or title_elem.get('label')
+                                or title_elem.text
+                            )
+                    link = item.findtext('link') or item.get('link')
+                    if not link:
+                        link_elem = (
+                            item.find('{http://www.w3.org/2005/Atom}link')
+                            or item.find('{*}link')
+                        )
                         if link_elem is not None:
-                            link = link_elem.get('href', '')
+                            link = (
+                                link_elem.get('href')
+                                or link_elem.get('url')
+                                or link_elem.text
+                                or ''
+                            )
+                    if not link:
+                        link = item.findtext('guid', '')
+
+                    # Fallbacks capture URLs from guid elements, namespaced links, or
+                    # attribute-based fields when standard tags are missing.
 
                     date_text = (
                         item.findtext('pubDate')
