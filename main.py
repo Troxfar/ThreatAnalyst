@@ -1,5 +1,7 @@
 import json, requests
 import xml.etree.ElementTree as ET
+from datetime import datetime
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 from PySide6 import QtCore, QtGui, QtWidgets
 import google.generativeai as genai
@@ -257,6 +259,21 @@ class FeedScraperTab(QtWidgets.QWidget):
     def scrape(self):
         urls = [u.strip() for u in self.url_edit.toPlainText().splitlines() if u.strip()]
         lines = []
+
+        def _parse_date(text: str):
+            if not text:
+                return None
+            text = text.strip()
+            for parser in (
+                parsedate_to_datetime,
+                lambda s: datetime.fromisoformat(s.replace('Z', '+00:00')),
+            ):
+                try:
+                    return parser(text)
+                except Exception:
+                    continue
+            return None
+
         for url in urls:
             try:
                 r = requests.get(url, timeout=10)
@@ -274,8 +291,19 @@ class FeedScraperTab(QtWidgets.QWidget):
                         link_elem = item.find('{http://www.w3.org/2005/Atom}link')
                         if link_elem is not None:
                             link = link_elem.get('href', '')
+
+                    date_text = (
+                        item.findtext('pubDate')
+                        or item.findtext('published')
+                        or item.findtext('updated')
+                        or item.findtext('{http://www.w3.org/2005/Atom}published')
+                        or item.findtext('{http://www.w3.org/2005/Atom}updated')
+                    )
+                    dt = _parse_date(date_text)
+                    date_str = dt.strftime('%Y-%m-%d %H:%M') if dt else 'Unknown date'
+
                     if title and link:
-                        lines.append(f"{title.strip()}: {link.strip()}")
+                        lines.append(f"{date_str} - {title.strip()}: {link.strip()}")
             except Exception as e:
                 lines.append(f"Error fetching {url}: {e}")
         self.output.setPlainText("\n".join(lines))
