@@ -321,15 +321,19 @@ class FeedScraperTab(QtWidgets.QWidget):
                     r = requests.get(url, timeout=10)
                     r.raise_for_status()
                     if BeautifulSoup:
-                        soup = BeautifulSoup(r.text, "html.parser")
-                        text = soup.get_text(separator="\n")
+                        try:
+                            soup = BeautifulSoup(r.text, "html.parser")
+                            text = soup.get_text(separator="\n", strip=True)
+                        except Exception as e:
+                            text = f"Error parsing {url}: {e}"
                     else:
                         text = r.text
-                    snippets.append(text.strip())
+                    cleaned = "\n".join(line.strip() for line in text.splitlines() if line.strip())
+                    snippets.append(cleaned)
                 except Exception as e:
                     snippets.append(f"Error fetching {url}: {e}")
-            combined = "\n\n".join(snippets)
-            self.content_tab.update_webscraps(combined)
+            combined_text = "\n\n".join(snippets).strip()
+            self.content_tab.update_webscraps(combined_text)
         finally:
             QtWidgets.QApplication.restoreOverrideCursor()
             if hasattr(self, "scrape_btn"):
