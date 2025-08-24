@@ -98,7 +98,9 @@ class SettingsTab(QtWidgets.QWidget):
 
     def load_settings(self):
         self.lm_endpoint_edit.setText(self.settings.value('lm_endpoint', DEFAULT_LM_URL))
-        self.api_key_edit.setText(self.settings.value('gemini_api_key', ''))
+        default_key = 'AIzaSyAwIloDIfDzd5OXTX2U_wPtOsW0cPuXPDs'
+        saved_key = self.settings.value('gemini_api_key')
+        self.api_key_edit.setText(saved_key if saved_key else default_key)
 
     def save_settings(self):
         self.settings.setValue('lm_endpoint', self.lm_endpoint_edit.text().strip())
