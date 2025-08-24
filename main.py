@@ -1,4 +1,4 @@
-import json, requests
+import json, requests, re
 try:
     from bs4 import BeautifulSoup
 except Exception:  # pragma: no cover - optional dependency
@@ -213,6 +213,8 @@ class FeedScraperTab(QtWidgets.QWidget):
         self.timestamp_label = QtWidgets.QLabel("Time Stamp")
         self.gemini_label = QtWidgets.QLabel("New URLs")
         self.gemini_output = QtWidgets.QTextEdit(readOnly=True)
+        self.scrape_btn = QtWidgets.QPushButton("Scrape URLs")
+        self.scrape_btn.clicked.connect(self._scrape_new_urls)
         self.last_scrape_edit = QtWidgets.QLineEdit()
         self.last_scrape_edit.setReadOnly(True)
         self.last_scrape_edit.setFixedHeight(24)
@@ -238,7 +240,10 @@ class FeedScraperTab(QtWidgets.QWidget):
         layout.addWidget(self.timestamp_label)
         layout.addWidget(self.last_scrape_edit)
         layout.addWidget(self.gemini_label)
-        layout.addWidget(self.gemini_output, 1)
+        gemini_layout = QtWidgets.QHBoxLayout()
+        gemini_layout.addWidget(self.gemini_output, 1)
+        gemini_layout.addWidget(self.scrape_btn)
+        layout.addLayout(gemini_layout)
         layout.addLayout(controls)
         self.timer = QtCore.QTimer(self)
         self.timer.timeout.connect(self.scrape)
@@ -282,12 +287,10 @@ class FeedScraperTab(QtWidgets.QWidget):
         text = self.output.toPlainText()
         if not text.strip():
             self.gemini_output.setPlainText("")
-            self._scrape_new_urls()
             return
         api_key = self.settings_tab.get_api_key()
         if not api_key:
             self.gemini_output.setPlainText("No API key configured.")
-            self._scrape_new_urls()
             return
         try:
             genai.configure(api_key=api_key)
@@ -298,29 +301,40 @@ class FeedScraperTab(QtWidgets.QWidget):
                 + text
             )
             response = model.generate_content(prompt)
-            self.gemini_output.setPlainText(response.text or "")
+            resp_text = response.text or ""
+            self.gemini_output.setPlainText(resp_text)
+            if re.search(r"https?://", resp_text):
+                self._scrape_new_urls()
         except Exception as e:
             self.gemini_output.setPlainText(f"Error: {e}")
-        finally:
-            self._scrape_new_urls()
 
     def _scrape_new_urls(self) -> None:
-        urls = [line.strip() for line in self.gemini_output.toPlainText().splitlines() if line.strip()]
-        snippets = []
-        for url in urls:
-            try:
-                r = requests.get(url, timeout=10)
-                r.raise_for_status()
-                if BeautifulSoup:
-                    soup = BeautifulSoup(r.text, "html.parser")
-                    text = soup.get_text(separator="\n")
-                else:
-                    text = r.text
-                snippets.append(text.strip())
-            except Exception as e:
-                snippets.append(f"Error fetching {url}: {e}")
-        combined = "\n\n".join(snippets)
-        self.content_tab.update_webscraps(combined)
+        QtWidgets.QApplication.setOverrideCursor(QtGui.QCursor(QtCore.Qt.WaitCursor))
+        if hasattr(self, "scrape_btn"):
+            self.scrape_btn.setEnabled(False)
+            self.scrape_btn.setText("Scraping...")
+        try:
+            urls = [line.strip() for line in self.gemini_output.toPlainText().splitlines() if line.strip()]
+            snippets = []
+            for url in urls:
+                try:
+                    r = requests.get(url, timeout=10)
+                    r.raise_for_status()
+                    if BeautifulSoup:
+                        soup = BeautifulSoup(r.text, "html.parser")
+                        text = soup.get_text(separator="\n")
+                    else:
+                        text = r.text
+                    snippets.append(text.strip())
+                except Exception as e:
+                    snippets.append(f"Error fetching {url}: {e}")
+            combined = "\n\n".join(snippets)
+            self.content_tab.update_webscraps(combined)
+        finally:
+            QtWidgets.QApplication.restoreOverrideCursor()
+            if hasattr(self, "scrape_btn"):
+                self.scrape_btn.setEnabled(True)
+                self.scrape_btn.setText("Scrape URLs")
 
     def scrape(self):
         urls = [u.strip() for u in self.url_edit.toPlainText().splitlines() if u.strip()]
