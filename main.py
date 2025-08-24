@@ -201,6 +201,7 @@ class FeedScraperTab(QtWidgets.QWidget):
         self.save_btn.clicked.connect(self.save_urls)
         self.load_urls()
         self.output = QtWidgets.QTextEdit(readOnly=True)
+        self.gemini_output = QtWidgets.QTextEdit(readOnly=True)
         self.last_scrape_edit = QtWidgets.QLineEdit()
         self.last_scrape_edit.setReadOnly(True)
         self.last_scrape_edit.setFixedHeight(24)
@@ -222,6 +223,7 @@ class FeedScraperTab(QtWidgets.QWidget):
         layout.addLayout(url_layout)
         layout.addLayout(controls)
         layout.addWidget(self.output, 1)
+        layout.addWidget(self.gemini_output, 1)
         layout.addWidget(self.last_scrape_edit)
         self.timer = QtCore.QTimer(self)
         self.timer.timeout.connect(self.scrape)
@@ -260,6 +262,28 @@ class FeedScraperTab(QtWidgets.QWidget):
         if self.remaining_seconds > 0:
             self.remaining_seconds -= 1
         self._update_countdown_label()
+
+    def _send_to_gemini(self):
+        text = self.output.toPlainText()
+        if not text.strip():
+            self.gemini_output.setPlainText("")
+            return
+        api_key = self.settings_tab.get_api_key()
+        if not api_key:
+            self.gemini_output.setPlainText("No API key configured.")
+            return
+        try:
+            genai.configure(api_key=api_key)
+            model = genai.GenerativeModel('gemini-1.5-flash')
+            prompt = (
+                "Look at the time stamp and ignore anything older than 24 hours "
+                "then strip out the URLs that are left and just list the URLs and nothing else.\n\n"
+                + text
+            )
+            response = model.generate_content(prompt)
+            self.gemini_output.setPlainText(response.text or "")
+        except Exception as e:
+            self.gemini_output.setPlainText(f"Error: {e}")
 
     def scrape(self):
         urls = [u.strip() for u in self.url_edit.toPlainText().splitlines() if u.strip()]
@@ -337,6 +361,7 @@ class FeedScraperTab(QtWidgets.QWidget):
             except Exception as e:
                 lines.append(f"Error fetching {url}: {e}")
         self.output.setPlainText("\n".join(lines))
+        self._send_to_gemini()
         self.remaining_seconds = self.interval_seconds
         self._update_countdown_label()
         self.last_scrape_edit.setText(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
