@@ -308,7 +308,9 @@ class FeedScraperTab(QtWidgets.QWidget):
                 age_str = f"{hours} hour{'s' if hours != 1 else ''}"
             else:
                 age_str = f"{max_age_minutes} minutes"
+            current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             prompt = (
+                f"The current time is {current_time}. "
                 f"Look at the time stamp and ignore anything older than {age_str} "
                 "then strip out the URLs that are left and just list the URLs and nothing else.\n\n"
                 + text
