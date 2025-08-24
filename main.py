@@ -376,6 +376,18 @@ class FeedScraperTab(QtWidgets.QWidget):
         self._update_countdown_label()
         self.last_scrape_edit.setText(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
 
+class ContentTab(QtWidgets.QWidget):
+    def __init__(self):
+        super().__init__()
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.addWidget(QtWidgets.QLabel("Web Scraps"))
+        self.webscraps = QtWidgets.QTextEdit()
+        self.webscraps.setReadOnly(True)
+        layout.addWidget(self.webscraps, 1)
+
+    def update_webscraps(self, text: str) -> None:
+        self.webscraps.setPlainText(text)
+
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self):
         super().__init__()
@@ -386,8 +398,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.settings_tab = SettingsTab()
         self.chat_tab = ChatTab(self.settings_tab)
         self.feed_tab = FeedScraperTab(self.settings_tab)
+        self.content_tab = ContentTab()
         self.tabs.addTab(self.chat_tab, "Chat")
         self.tabs.addTab(self.feed_tab, "Feeds")
+        self.tabs.addTab(self.content_tab, "Content")
         self.tabs.addTab(self.settings_tab, "Settings")
 
 
