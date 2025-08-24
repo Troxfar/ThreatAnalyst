@@ -215,13 +215,17 @@ class FeedScraperTab(QtWidgets.QWidget):
         self.gemini_output = QtWidgets.QTextEdit(readOnly=True)
         self.scrape_btn = QtWidgets.QPushButton("Scrape URLs")
         self.scrape_btn.clicked.connect(self._scrape_new_urls)
+        self.gemini_1h_btn = QtWidgets.QPushButton("New URLs (1h)")
+        self.gemini_1h_btn.clicked.connect(lambda: self._send_to_gemini(60))
+        self.gemini_12h_btn = QtWidgets.QPushButton("New URLs (12h)")
+        self.gemini_12h_btn.clicked.connect(lambda: self._send_to_gemini(720))
         self.last_scrape_edit = QtWidgets.QLineEdit()
         self.last_scrape_edit.setReadOnly(True)
         self.last_scrape_edit.setFixedHeight(24)
         self.last_scrape_edit.setText("Never")
         self.interval_combo = QtWidgets.QComboBox()
         self.interval_combo.addItems(["5", "15", "60"])
-        self.interval_combo.setCurrentText("5")
+        self.interval_combo.setCurrentText("15")
         self.interval_combo.currentTextChanged.connect(lambda t: self.set_interval(int(t)))
         controls = QtWidgets.QHBoxLayout()
         controls.addWidget(QtWidgets.QLabel('Refresh (min):'))
@@ -242,14 +246,18 @@ class FeedScraperTab(QtWidgets.QWidget):
         layout.addWidget(self.gemini_label)
         gemini_layout = QtWidgets.QHBoxLayout()
         gemini_layout.addWidget(self.gemini_output, 1)
-        gemini_layout.addWidget(self.scrape_btn)
+        btn_layout = QtWidgets.QVBoxLayout()
+        btn_layout.addWidget(self.scrape_btn)
+        btn_layout.addWidget(self.gemini_1h_btn)
+        btn_layout.addWidget(self.gemini_12h_btn)
+        gemini_layout.addLayout(btn_layout)
         layout.addLayout(gemini_layout)
         layout.addLayout(controls)
         self.timer = QtCore.QTimer(self)
         self.timer.timeout.connect(self.scrape)
         self.countdown_timer = QtCore.QTimer(self)
         self.countdown_timer.timeout.connect(self._countdown_tick)
-        self.set_interval(5)
+        self.set_interval(15)
         self.countdown_timer.start(1000)
         self.scrape()
 
@@ -283,7 +291,7 @@ class FeedScraperTab(QtWidgets.QWidget):
             self.remaining_seconds -= 1
         self._update_countdown_label()
 
-    def _send_to_gemini(self):
+    def _send_to_gemini(self, max_age_minutes: int = 15):
         text = self.output.toPlainText()
         if not text.strip():
             self.gemini_output.setPlainText("")
@@ -295,8 +303,13 @@ class FeedScraperTab(QtWidgets.QWidget):
         try:
             genai.configure(api_key=api_key)
             model = genai.GenerativeModel('gemini-1.5-flash')
+            if max_age_minutes % 60 == 0:
+                hours = max_age_minutes // 60
+                age_str = f"{hours} hour{'s' if hours != 1 else ''}"
+            else:
+                age_str = f"{max_age_minutes} minutes"
             prompt = (
-                "Look at the time stamp and ignore anything older than 24 hours "
+                f"Look at the time stamp and ignore anything older than {age_str} "
                 "then strip out the URLs that are left and just list the URLs and nothing else.\n\n"
                 + text
             )
@@ -418,7 +431,7 @@ class FeedScraperTab(QtWidgets.QWidget):
             except Exception as e:
                 lines.append(f"Error fetching {url}: {e}")
         self.output.setPlainText("\n".join(lines))
-        self._send_to_gemini()
+        self._send_to_gemini(15)
         self.remaining_seconds = self.interval_seconds
         self._update_countdown_label()
         self.last_scrape_edit.setText(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
