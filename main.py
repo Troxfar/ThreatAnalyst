@@ -323,6 +323,8 @@ class FeedScraperTab(QtWidgets.QWidget):
                     if BeautifulSoup:
                         try:
                             soup = BeautifulSoup(r.text, "html.parser")
+                            for tag in soup(["script", "style"]):
+                                tag.decompose()
                             text = soup.get_text(separator="\n", strip=True)
                         except Exception as e:
                             text = f"Error parsing {url}: {e}"
