@@ -1,4 +1,8 @@
 import json, requests
+try:
+    from bs4 import BeautifulSoup
+except Exception:  # pragma: no cover - optional dependency
+    BeautifulSoup = None
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from email.utils import parsedate_to_datetime
@@ -182,9 +186,10 @@ class GeminiTab(QtWidgets.QWidget):
 
 
 class FeedScraperTab(QtWidgets.QWidget):
-    def __init__(self, settings_tab):
+    def __init__(self, settings_tab, content_tab):
         super().__init__()
         self.settings_tab = settings_tab
+        self.content_tab = content_tab
         self.settings = QtCore.QSettings('ThreatAnalyst', 'NeonJoy')
         self.default_urls = [
             "https://feeds.feedburner.com/TheHackersNews",
@@ -277,10 +282,12 @@ class FeedScraperTab(QtWidgets.QWidget):
         text = self.output.toPlainText()
         if not text.strip():
             self.gemini_output.setPlainText("")
+            self._scrape_new_urls()
             return
         api_key = self.settings_tab.get_api_key()
         if not api_key:
             self.gemini_output.setPlainText("No API key configured.")
+            self._scrape_new_urls()
             return
         try:
             genai.configure(api_key=api_key)
@@ -294,6 +301,26 @@ class FeedScraperTab(QtWidgets.QWidget):
             self.gemini_output.setPlainText(response.text or "")
         except Exception as e:
             self.gemini_output.setPlainText(f"Error: {e}")
+        finally:
+            self._scrape_new_urls()
+
+    def _scrape_new_urls(self) -> None:
+        urls = [line.strip() for line in self.gemini_output.toPlainText().splitlines() if line.strip()]
+        snippets = []
+        for url in urls:
+            try:
+                r = requests.get(url, timeout=10)
+                r.raise_for_status()
+                if BeautifulSoup:
+                    soup = BeautifulSoup(r.text, "html.parser")
+                    text = soup.get_text(separator="\n")
+                else:
+                    text = r.text
+                snippets.append(text.strip())
+            except Exception as e:
+                snippets.append(f"Error fetching {url}: {e}")
+        combined = "\n\n".join(snippets)
+        self.content_tab.update_webscraps(combined)
 
     def scrape(self):
         urls = [u.strip() for u in self.url_edit.toPlainText().splitlines() if u.strip()]
@@ -397,8 +424,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.settings_tab = SettingsTab()
         self.chat_tab = ChatTab(self.settings_tab)
-        self.feed_tab = FeedScraperTab(self.settings_tab)
         self.content_tab = ContentTab()
+        self.feed_tab = FeedScraperTab(self.settings_tab, self.content_tab)
         self.tabs.addTab(self.chat_tab, "Chat")
         self.tabs.addTab(self.feed_tab, "Feeds")
         self.tabs.addTab(self.content_tab, "Content")
