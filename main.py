@@ -201,6 +201,10 @@ class FeedScraperTab(QtWidgets.QWidget):
         self.save_btn.clicked.connect(self.save_urls)
         self.load_urls()
         self.output = QtWidgets.QTextEdit(readOnly=True)
+        self.last_scrape_edit = QtWidgets.QLineEdit()
+        self.last_scrape_edit.setReadOnly(True)
+        self.last_scrape_edit.setFixedHeight(24)
+        self.last_scrape_edit.setText("Never")
         self.interval_combo = QtWidgets.QComboBox()
         self.interval_combo.addItems(["5", "15", "60"])
         self.interval_combo.setCurrentText("5")
@@ -218,6 +222,7 @@ class FeedScraperTab(QtWidgets.QWidget):
         layout.addLayout(url_layout)
         layout.addLayout(controls)
         layout.addWidget(self.output, 1)
+        layout.addWidget(self.last_scrape_edit)
         self.timer = QtCore.QTimer(self)
         self.timer.timeout.connect(self.scrape)
         self.countdown_timer = QtCore.QTimer(self)
@@ -334,6 +339,7 @@ class FeedScraperTab(QtWidgets.QWidget):
         self.output.setPlainText("\n".join(lines))
         self.remaining_seconds = self.interval_seconds
         self._update_countdown_label()
+        self.last_scrape_edit.setText(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
 
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self):
