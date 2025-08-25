@@ -4,7 +4,7 @@ try:
 except Exception:  # pragma: no cover - optional dependency
     BeautifulSoup = None
 import xml.etree.ElementTree as ET
-from datetime import datetime
+from datetime import datetime, timedelta
 from email.utils import parsedate_to_datetime
 from pathlib import Path
 from PySide6 import QtCore, QtGui, QtWidgets
@@ -426,14 +426,19 @@ class FeedScraperTab(QtWidgets.QWidget):
                         or item.findtext('{http://www.w3.org/2005/Atom}updated')
                     )
                     dt = _parse_date(date_text)
-                    date_str = dt.strftime('%Y-%m-%d %H:%M') if dt else 'Unknown date'
+                    if dt is None:
+                        continue
+                    cutoff = datetime.now(tz=dt.tzinfo) - timedelta(minutes=15)
+                    if dt < cutoff:
+                        continue
+                    date_str = dt.strftime('%Y-%m-%d %H:%M')
 
                     if title and link:
                         lines.append(f"{date_str} - {title.strip()}: {link.strip()}")
             except Exception as e:
                 lines.append(f"Error fetching {url}: {e}")
         self.output.setPlainText("\n".join(lines))
-        self._send_to_gemini(15)
+        self.gemini_output.setPlainText("")
         self.remaining_seconds = self.interval_seconds
         self._update_countdown_label()
         self.last_scrape_edit.setText(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
