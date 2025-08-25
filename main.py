@@ -199,6 +199,7 @@ class FeedScraperTab(QtWidgets.QWidget):
         self.settings_tab = settings_tab
         self.content_tab = content_tab
         self.settings = QtCore.QSettings('ThreatAnalyst', 'NeonJoy')
+        self.cutoff_minutes = 15
         self.default_urls = [
             "https://feeds.feedburner.com/TheHackersNews",
             "https://www.bleepingcomputer.com/feed/",
@@ -223,10 +224,10 @@ class FeedScraperTab(QtWidgets.QWidget):
         self.gemini_output = QtWidgets.QTextEdit(readOnly=True)
         self.scrape_btn = QtWidgets.QPushButton("Scrape URLs")
         self.scrape_btn.clicked.connect(self._scrape_new_urls)
-        self.gemini_1h_btn = QtWidgets.QPushButton("New URLs (1h)")
-        self.gemini_1h_btn.clicked.connect(lambda: self._send_to_gemini(60))
-        self.gemini_12h_btn = QtWidgets.QPushButton("New URLs (12h)")
-        self.gemini_12h_btn.clicked.connect(lambda: self._send_to_gemini(720))
+        self.scrape_hour_btn = QtWidgets.QPushButton("Scrape (1h)")
+        self.scrape_hour_btn.clicked.connect(lambda: self._set_cutoff_and_scrape(60))
+        self.scrape_day_btn = QtWidgets.QPushButton("Scrape (1 day)")
+        self.scrape_day_btn.clicked.connect(lambda: self._set_cutoff_and_scrape(1440))
         self.last_scrape_edit = QtWidgets.QLineEdit()
         self.last_scrape_edit.setReadOnly(True)
         self.last_scrape_edit.setFixedHeight(24)
@@ -256,8 +257,8 @@ class FeedScraperTab(QtWidgets.QWidget):
         gemini_layout.addWidget(self.gemini_output, 1)
         btn_layout = QtWidgets.QVBoxLayout()
         btn_layout.addWidget(self.scrape_btn)
-        btn_layout.addWidget(self.gemini_1h_btn)
-        btn_layout.addWidget(self.gemini_12h_btn)
+        btn_layout.addWidget(self.scrape_hour_btn)
+        btn_layout.addWidget(self.scrape_day_btn)
         gemini_layout.addLayout(btn_layout)
         layout.addLayout(gemini_layout)
         layout.addLayout(controls)
@@ -298,6 +299,10 @@ class FeedScraperTab(QtWidgets.QWidget):
         if self.remaining_seconds > 0:
             self.remaining_seconds -= 1
         self._update_countdown_label()
+
+    def _set_cutoff_and_scrape(self, minutes: int) -> None:
+        self.cutoff_minutes = minutes
+        self.scrape()
 
     def _send_to_gemini(self, max_age_minutes: int = 15):
         text = self.output.toPlainText()
@@ -436,7 +441,7 @@ class FeedScraperTab(QtWidgets.QWidget):
                     dt = _parse_date(date_text)
                     if dt is None:
                         continue
-                    cutoff = datetime.now(tz=dt.tzinfo) - timedelta(minutes=15)
+                    cutoff = datetime.now(tz=dt.tzinfo) - timedelta(minutes=self.cutoff_minutes)
                     if dt < cutoff:
                         continue
                     date_str = dt.strftime('%Y-%m-%d %H:%M')
