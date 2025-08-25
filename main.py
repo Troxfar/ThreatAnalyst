@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from email.utils import parsedate_to_datetime
 from pathlib import Path
 from PySide6 import QtCore, QtGui, QtWidgets
+from PySide6.QtTextToSpeech import QTextToSpeech
 import google.generativeai as genai
 
 # default LM Studio endpoint used if no setting has been saved yet
@@ -62,11 +63,17 @@ class ChatTab(QtWidgets.QWidget):
         self.avatar_movie.setCacheMode(QtGui.QMovie.CacheAll)
         self.avatar.setMovie(self.avatar_movie)
         self.avatar_movie.start()
-        self.history = QtWidgets.QTextEdit(readOnly=True); self.input = QtWidgets.QLineEdit(placeholderText='Say something…'); self.sendBtn = QtWidgets.QPushButton('Send')
+        self.history = QtWidgets.QTextEdit(readOnly=True)
+        self.input = QtWidgets.QLineEdit(placeholderText='Say something…')
+        self.sendBtn = QtWidgets.QPushButton('Send')
+        self.speakBtn = QtWidgets.QPushButton('Speak')
         hl = QtWidgets.QHBoxLayout(); hl.addWidget(self.avatar); hl.addWidget(self.history, 1)
-        bl = QtWidgets.QHBoxLayout(); bl.addWidget(self.input, 1); bl.addWidget(self.sendBtn)
+        bl = QtWidgets.QHBoxLayout(); bl.addWidget(self.input, 1); bl.addWidget(self.sendBtn); bl.addWidget(self.speakBtn)
         layout = QtWidgets.QVBoxLayout(self); layout.addLayout(hl); layout.addLayout(bl)
-        self.sendBtn.clicked.connect(self.on_send); self.input.returnPressed.connect(self.on_send)
+        self.sendBtn.clicked.connect(self.on_send)
+        self.input.returnPressed.connect(self.on_send)
+        self.speakBtn.clicked.connect(self.on_speak)
+        self.tts = QTextToSpeech(self)
         self.model_name = 'qwen2.5-7b-instruct'; self.messages = [{'role':'system','content':'Return STRICT JSON only, matching the schema.'}]
 
     def on_send(self):
@@ -74,6 +81,10 @@ class ChatTab(QtWidgets.QWidget):
         if not text: return
         self.input.clear(); self._append('You', text); self.messages.append({'role':'user','content':text})
         QtCore.QTimer.singleShot(0, self._call_lmstudio)
+
+    def on_speak(self):
+        if self.messages and 'content' in self.messages[-1]:
+            self.tts.say(self.messages[-1]['content'])
 
     def _append(self, who, text):
         self.history.append(f'<b>{who}:</b> {text}')
