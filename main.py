@@ -89,10 +89,18 @@ class ChatTab(QtWidgets.QWidget):
         QtCore.QTimer.singleShot(0, self._call_lmstudio)
 
     def on_speak(self):
-        if not getattr(self, 'voice_ready', False):
+        if not getattr(self, 'voice_ready', False) or self.tts.state() != QTextToSpeech.State.Ready:
             return
-        if self.messages and 'content' in self.messages[-1] and self.tts.state() == QTextToSpeech.State.Ready:
-            self.tts.say(self.messages[-1]['content'])
+        text = self.input.text().strip()
+        if not text:
+            lines = self.history.toPlainText().splitlines()
+            if lines:
+                last = lines[-1]
+                text = last.split(':', 1)[-1].strip()
+        if text:
+            self.tts.say(text)
+        else:
+            QtWidgets.QApplication.beep()
 
     def _append(self, who, text):
         self.history.append(f'<b>{who}:</b> {text}')
