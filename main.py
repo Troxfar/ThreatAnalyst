@@ -74,6 +74,12 @@ class ChatTab(QtWidgets.QWidget):
         self.input.returnPressed.connect(self.on_send)
         self.speakBtn.clicked.connect(self.on_speak)
         self.tts = QTextToSpeech(self)
+        voices = self.tts.availableVoices(); self.voice_ready = bool(voices)
+        if self.voice_ready:
+            self.tts.setVoice(voices[0]); self.tts.setVolume(1.0); self.tts.setRate(0.0)
+        else:
+            QtWidgets.QMessageBox.warning(self, 'TTS Error', 'No text-to-speech voices available.')
+            self.speakBtn.setEnabled(False)
         self.model_name = 'qwen2.5-7b-instruct'; self.messages = [{'role':'system','content':'Return STRICT JSON only, matching the schema.'}]
 
     def on_send(self):
@@ -83,7 +89,9 @@ class ChatTab(QtWidgets.QWidget):
         QtCore.QTimer.singleShot(0, self._call_lmstudio)
 
     def on_speak(self):
-        if self.messages and 'content' in self.messages[-1]:
+        if not getattr(self, 'voice_ready', False):
+            return
+        if self.messages and 'content' in self.messages[-1] and self.tts.state() == QTextToSpeech.State.Ready:
             self.tts.say(self.messages[-1]['content'])
 
     def _append(self, who, text):
