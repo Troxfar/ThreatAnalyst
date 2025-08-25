@@ -230,7 +230,9 @@ class FeedScraperTab(QtWidgets.QWidget):
         self.gemini_label = QtWidgets.QLabel("New URLs")
         self.gemini_output = QtWidgets.QTextEdit(readOnly=True)
         self.scrape_btn = QtWidgets.QPushButton("Scrape URLs")
-        self.scrape_btn.clicked.connect(self._scrape_new_urls)
+        # Trigger a full feed scrape which will automatically send the
+        # results to Gemini and populate the "New URLs" box.
+        self.scrape_btn.clicked.connect(self.scrape)
         self.scrape_hour_btn = QtWidgets.QPushButton("Scrape (1h)")
         self.scrape_hour_btn.clicked.connect(lambda: self._set_cutoff_and_scrape(60))
         self.scrape_day_btn = QtWidgets.QPushButton("Scrape (1 day)")
@@ -462,6 +464,9 @@ class FeedScraperTab(QtWidgets.QWidget):
         self.remaining_seconds = self.interval_seconds
         self._update_countdown_label()
         self.last_scrape_edit.setText(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+        # Automatically send the scraped feed output to Gemini for URL extraction
+        # once the UI has updated.
+        QtCore.QTimer.singleShot(0, lambda: self._send_to_gemini(self.cutoff_minutes))
 
 class ContentTab(QtWidgets.QWidget):
     def __init__(self, settings_tab: 'SettingsTab', chat_tab: 'ChatTab'):
