@@ -85,8 +85,11 @@ class ChatTab(QtWidgets.QWidget):
         try:
             r = requests.post(url, json=payload, timeout=60); r.raise_for_status(); data = r.json()
             content = data['choices'][0]['message']['content']; tagged = json.loads(content) if isinstance(content, str) else content
-            reply = tagged.get('assistant_text','…'); emotion = tagged.get('emotion','neutral'); intensity = float(tagged.get('intensity', 0.5))
-            self.messages.append({'role':'assistant','content':reply}); self._append('AI', reply); self.avatar.set_emotion(emotion, intensity)
+            reply = tagged.get('assistant_text', '…')
+            emotion = tagged.get('emotion', 'neutral')
+            intensity = float(tagged.get('intensity', 0.5))
+            self.append_external_message('AI', reply)
+            self.avatar.set_emotion(emotion, intensity)
             
         except Exception as e:
             self._append('System', f"<span style='color:#ff7b7b'>Error: {e}</span>")
