@@ -56,7 +56,13 @@ class ChatTab(QtWidgets.QWidget):
         super().__init__()
         self.settings = settings
         self.setStyleSheet('QTextEdit { background:#0f1630; color:#e6f0ff; } QLineEdit { background:#101a3a; color:#e6f0ff; padding:6px; } QPushButton { padding:6px 12px; }')
-        assets = Path(__file__).parent / 'assets'; self.avatar = AvatarView(assets)
+        assets = Path(__file__).parent / "assets"
+        self.avatar = QtWidgets.QLabel()
+        self.avatar_movie = QtGui.QMovie(str(assets / "Avatar1.gif"))
+        self.avatar_movie.setCacheMode(QtGui.QMovie.CacheAll)
+        self.avatar_movie.setLoopCount(-1)  # loop forever
+        self.avatar.setMovie(self.avatar_movie)
+        self.avatar_movie.start()
         self.history = QtWidgets.QTextEdit(readOnly=True); self.input = QtWidgets.QLineEdit(placeholderText='Say something…'); self.sendBtn = QtWidgets.QPushButton('Send')
         hl = QtWidgets.QHBoxLayout(); hl.addWidget(self.avatar); hl.addWidget(self.history, 1)
         bl = QtWidgets.QHBoxLayout(); bl.addWidget(self.input, 1); bl.addWidget(self.sendBtn)
@@ -89,7 +95,8 @@ class ChatTab(QtWidgets.QWidget):
             emotion = tagged.get('emotion', 'neutral')
             intensity = float(tagged.get('intensity', 0.5))
             self.append_external_message('AI', reply)
-            self.avatar.set_emotion(emotion, intensity)
+            if hasattr(self.avatar, 'set_emotion'):
+                self.avatar.set_emotion(emotion, intensity)
             
         except Exception as e:
             self._append('System', f"<span style='color:#ff7b7b'>Error: {e}</span>")
