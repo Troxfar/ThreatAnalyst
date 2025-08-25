@@ -73,6 +73,11 @@ class ChatTab(QtWidgets.QWidget):
     def _append(self, who, text):
         self.history.append(f'<b>{who}:</b> {text}')
 
+    def append_external_message(self, who: str, text: str) -> None:
+        """Expose message append for external sources."""
+        self._append(who, text)
+        self.messages.append({'role': 'assistant', 'content': text})
+
     def _call_lmstudio(self):
         url = self.settings.get_lm_endpoint() or DEFAULT_LM_URL
         payload = {'model': self.model_name, 'messages': self.messages[-12:], 'temperature': 0.7,
@@ -444,8 +449,10 @@ class FeedScraperTab(QtWidgets.QWidget):
         self.last_scrape_edit.setText(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
 
 class ContentTab(QtWidgets.QWidget):
-    def __init__(self):
+    def __init__(self, settings_tab: 'SettingsTab', chat_tab: 'ChatTab'):
         super().__init__()
+        self.settings_tab = settings_tab
+        self.chat_tab = chat_tab
         layout = QtWidgets.QVBoxLayout(self)
         layout.addWidget(QtWidgets.QLabel("Web Scraps"))
         self.webscraps = QtWidgets.QTextEdit()
@@ -454,6 +461,23 @@ class ContentTab(QtWidgets.QWidget):
 
     def update_webscraps(self, text: str) -> None:
         self.webscraps.setPlainText(text)
+        if not text.strip():
+            return
+        key = self.settings_tab.get_api_key()
+        if not key:
+            self.chat_tab.append_external_message("Gemini", "No API key set.")
+            return
+        try:
+            genai.configure(api_key=key)
+            model = genai.GenerativeModel('gemini-1.5-flash')
+            prompt = (
+                "analyze the following articles from the perspective of an information security analyst that works at a financial institution.\n\n"
+                + text
+            )
+            resp = model.generate_content(prompt)
+            self.chat_tab.append_external_message("Gemini", resp.text)
+        except Exception as e:
+            self.chat_tab.append_external_message("Gemini", f"Error: {e}")
 
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self):
@@ -464,7 +488,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.settings_tab = SettingsTab()
         self.chat_tab = ChatTab(self.settings_tab)
-        self.content_tab = ContentTab()
+        self.content_tab = ContentTab(self.settings_tab, self.chat_tab)
         self.feed_tab = FeedScraperTab(self.settings_tab, self.content_tab)
         self.tabs.addTab(self.chat_tab, "Chat")
         self.tabs.addTab(self.feed_tab, "Feeds")
