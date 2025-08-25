@@ -60,7 +60,6 @@ class ChatTab(QtWidgets.QWidget):
         self.avatar = QtWidgets.QLabel()
         self.avatar_movie = QtGui.QMovie(str(assets / "Avatar1.gif"))
         self.avatar_movie.setCacheMode(QtGui.QMovie.CacheAll)
-        self.avatar_movie.setLoopCount(-1)  # loop forever
         self.avatar.setMovie(self.avatar_movie)
         self.avatar_movie.start()
         self.history = QtWidgets.QTextEdit(readOnly=True); self.input = QtWidgets.QLineEdit(placeholderText='Say something…'); self.sendBtn = QtWidgets.QPushButton('Send')
